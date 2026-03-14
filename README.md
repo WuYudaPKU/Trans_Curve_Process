@@ -61,7 +61,7 @@ pip is not recognized
 
 如果不会，在文件夹内部的空白处右键单击，点击在终端中打开。
 
-![image-20260314234824350](.\figs\1.png)
+![image-20260314234824350](figs\1.png)
 
 然后会跳出来一个命令行，输入`transfer_app.py`，即可启用软件。
 
