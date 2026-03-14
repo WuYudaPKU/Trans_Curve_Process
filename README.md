@@ -63,7 +63,11 @@ pip is not recognized
 
 ![image-20260314234824350](figs\1.png)
 
-然后会跳出来一个命令行，输入`transfer_app.py`，即可启用软件。
+然后会跳出来一个命令行，输入
+```
+python transfer_app.py
+```
+即可启用软件。
 
 ### 2.4 软件功能
 
