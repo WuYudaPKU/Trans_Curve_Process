@@ -53,7 +53,7 @@ pip install numpy pandas matplotlib PyQt5
 pip is not recognized
 ```
 
-说明上面**"Add Python to PATH"**被你忽略了。上网搜一下解决办法。
+说明上面**Add Python to PATH**被你忽略了。上网搜一下解决办法。
 
 ### 2.3 软件启动
 
