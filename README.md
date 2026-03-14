@@ -56,6 +56,7 @@ pip is not recognized
 说明上面**Add Python to PATH**被你忽略了。上网搜一下解决办法。
 
 ### 2.3 软件启动
+把该文件夹下载到本地。可以通过点击右上角的code-downloadzip，也可以直接git.
 
 上面都做好了之后，如果会命令行（或者搜教程速通一下命令行，cd到软件目录下），运行transfer_app.py即可。
 
