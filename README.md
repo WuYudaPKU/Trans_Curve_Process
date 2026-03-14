@@ -29,7 +29,8 @@ Python 3.x.x
 ​	如果不然，说明没有python。
 
 * 如有，看2.2。
-* 如果没有，请在https://www.python.org/downloads/这个目录下找到至少`3.X`的项目（推荐3.10及以上）,点击进去，找到对应的`win`或者`mac`系统进行下载。 Windows 用户通常选择 "Windows installer (64-bit，而不是32-bit)"。
+* 如果没有，请在https://www.python.org/downloads/
+ 这个目录下找到至少`3.X`的项目（推荐3.10及以上）,点击进去，找到对应的`win`或者`mac`系统进行下载。 Windows 用户通常选择 "Windows installer (64-bit，而不是32-bit)"。
 
 * 运行下载好的 `.exe` 安装程序。
 
