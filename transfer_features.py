@@ -119,32 +119,85 @@ def compute_onoff_ratio(idc):
 
 
 def compute_ss(vg, idc):
-    id_abs = np.abs(idc)
+    vg = np.asarray(vg)
+    id_abs = np.abs(np.asarray(idc))
     id_abs[id_abs <= 0] = 1e-20
     log_id = np.log10(id_abs)
-    mask = (log_id > -10) & (log_id < -6)
+
+    finite = np.isfinite(vg) & np.isfinite(log_id)
+    if np.sum(finite) < 2:
+        return np.nan, None
+
+    vg = vg[finite]
+    log_id = log_id[finite]
+
+    order = np.argsort(vg)
+    vg = vg[order]
+    log_id = log_id[order]
+
+    overall_slope = np.polyfit(vg, log_id, 1)[0]
+    slope_sign = 1 if overall_slope >= 0 else -1
+    grad = np.gradient(log_id, vg)
+    sign_mask = grad * slope_sign > 0
+
+    log_min = np.nanmin(log_id)
+    mask = sign_mask & (log_id >= log_min + 0.3) & (log_id <= log_min + 4.0)
     if np.sum(mask) < 5:
-        mask = (log_id > log_id.min() + 0.2) & (log_id < log_id.min() + 4)
+        low_q, high_q = np.quantile(log_id, [0.05, 0.40])
+        mask = sign_mask & (log_id >= low_q) & (log_id <= high_q)
 
     vg_fit = vg[mask]
     log_id_fit = log_id[mask]
     if len(vg_fit) < 2:
         return np.nan, None
 
-    coeff = np.polyfit(vg_fit, log_id_fit, 1)
-    slope = coeff[0]
+    n = len(vg_fit)
+    min_points = 5
+    if n <= min_points:
+        coeff = np.polyfit(vg_fit, log_id_fit, 1)
+        slope = coeff[0]
+        ss = 1 / abs(slope) if slope != 0 else np.nan
+        return ss, (vg_fit, np.polyval(coeff, vg_fit))
+
+    window_len = min(max(min_points, 8), n)
+    best_r2 = -np.inf
+    best_coeff = None
+    best_slice = slice(0, window_len)
+
+    for start in range(0, n - window_len + 1):
+        sl = slice(start, start + window_len)
+        x = vg_fit[sl]
+        y = log_id_fit[sl]
+        coeff = np.polyfit(x, y, 1)
+        y_fit = np.polyval(coeff, x)
+        ss_res = np.sum((y - y_fit) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        r2 = 1 - ss_res / ss_tot if ss_tot != 0 else -np.inf
+        if r2 > best_r2:
+            best_r2 = r2
+            best_coeff = coeff
+            best_slice = sl
+
+    x_best = vg_fit[best_slice]
+    if best_coeff is None:
+        return np.nan, None
+
+    slope = best_coeff[0]
     ss = 1 / abs(slope) if slope != 0 else np.nan
-    return ss, (vg_fit, np.polyval(coeff, vg_fit))
+    return ss, (x_best, np.polyval(best_coeff, x_best))
 
 
 def compute_gm(vg, idc):
     if len(vg) < 2:
-        return np.array([]), np.nan
+        return np.array([]), np.nan, np.nan
     gm = np.gradient(idc, vg)
     if gm.size == 0:
-        return gm, np.nan
-    max_gm = np.nanmax(np.abs(gm))
-    return gm, max_gm
+        return gm, np.nan, np.nan
+
+    idx = int(np.nanargmax(np.abs(gm)))
+    max_gm = np.abs(gm[idx])
+    vg_at_max = vg[idx]
+    return gm, max_gm, vg_at_max
 
 
 def compute_vth_info(vg, idc, device_type):
@@ -262,7 +315,7 @@ def extract_features_for_sweep(vg, idc, device_type):
 
     onoff, _, max_id = compute_onoff_ratio(idc)
     ss, ss_fit = compute_ss(vg, idc)
-    gm, max_gm = compute_gm(vg, idc)
+    gm, max_gm, vg_at_max_gm = compute_gm(vg, idc)
     vth_info = compute_vth_info(vg, idc, device_type)
 
     return {
@@ -271,6 +324,7 @@ def extract_features_for_sweep(vg, idc, device_type):
         "ss": ss,
         "max_id": max_id,
         "max_gm": max_gm,
+        "vg_at_max_gm": vg_at_max_gm,
         "gm": gm,
         "vth_info": vth_info,
         "ss_fit": ss_fit,

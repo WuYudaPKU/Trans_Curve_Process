@@ -8,7 +8,9 @@ if script_dir not in sys.path:
 from datetime import datetime
 
 import pandas as pd
+import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -21,6 +23,9 @@ from PyQt5.QtWidgets import (
     QWidget,
     QComboBox,
     QTextEdit,
+    QLineEdit,
+    QFormLayout,
+    QListWidgetItem,
 )
 
 from transfer_features import (
@@ -69,6 +74,23 @@ class TransferApp(QWidget):
         self.device_type_combo = QComboBox()
         self.device_type_combo.addItems(["auto", "n", "p"])
 
+        self.w_input = QLineEdit()
+        self.l_input = QLineEdit()
+        self.d_input = QLineEdit()
+        for field in (self.w_input, self.l_input, self.d_input):
+            field.setValidator(QDoubleValidator(0.0, 1e9, 6))
+            field.setPlaceholderText("um")
+
+        self.apply_wld_btn = QPushButton("Apply WLd to Selected")
+        self.apply_wld_btn.clicked.connect(self.apply_wld_to_selected)
+
+        self.apply_wld_all_btn = QPushButton("Apply WLd to All")
+        self.apply_wld_all_btn.clicked.connect(self.apply_wld_to_all)
+
+        self.wld_hint = QLabel("WLd is optional. You can run without it.")
+
+        self.file_dims = {}
+
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
 
@@ -95,6 +117,11 @@ class TransferApp(QWidget):
         top_row.addWidget(QLabel("Device type:"))
         top_row.addWidget(self.device_type_combo)
 
+        wld_form = QFormLayout()
+        wld_form.addRow("W (um)", self.w_input)
+        wld_form.addRow("L (um)", self.l_input)
+        wld_form.addRow("d (um)", self.d_input)
+
         output_row = QHBoxLayout()
         output_row.addWidget(self.output_label)
         output_row.addStretch(1)
@@ -102,6 +129,10 @@ class TransferApp(QWidget):
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(top_row)
+        main_layout.addLayout(wld_form)
+        main_layout.addWidget(self.apply_wld_btn)
+        main_layout.addWidget(self.apply_wld_all_btn)
+        main_layout.addWidget(self.wld_hint)
         main_layout.addWidget(QLabel("Drop CSV files or folders below:"))
         main_layout.addWidget(self.file_list, 3)
         main_layout.addLayout(output_row)
@@ -122,7 +153,12 @@ class TransferApp(QWidget):
         existing = set(self._current_files())
         for f in files:
             if f not in existing:
-                self.file_list.addItem(f)
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, f)
+                self.file_list.addItem(item)
+                if f not in self.file_dims:
+                    self.file_dims[f] = self._read_wld_inputs()
+                self._update_item_label(item)
         self.log(f"Added {len(files)} files.")
 
     def add_files(self):
@@ -142,7 +178,67 @@ class TransferApp(QWidget):
             self.output_label.setText(f"Output: {folder}")
 
     def _current_files(self):
-        return [self.file_list.item(i).text() for i in range(self.file_list.count())]
+        files = []
+        for i in range(self.file_list.count()):
+            item = self.file_list.item(i)
+            files.append(self._item_path(item))
+        return files
+
+    def _item_path(self, item):
+        path = item.data(Qt.UserRole)
+        return path if path else item.text()
+
+    def _format_wld_label(self, dims):
+        w = dims.get("W")
+        l = dims.get("L")
+        d = dims.get("d")
+        if not np.isfinite(w) or not np.isfinite(l) or not np.isfinite(d):
+            return "W/L/d: -"
+        return f"W/L/d: {w:g}/{l:g}/{d:g} um"
+
+    def _update_item_label(self, item):
+        path = self._item_path(item)
+        dims = self.file_dims.get(path, self._read_wld_inputs())
+        base = os.path.basename(path)
+        item.setText(f"{base} [{self._format_wld_label(dims)}]")
+
+    def _read_wld_inputs(self):
+        def _to_float(field):
+            text = field.text().strip()
+            return float(text) if text else np.nan
+
+        return {
+            "W": _to_float(self.w_input),
+            "L": _to_float(self.l_input),
+            "d": _to_float(self.d_input),
+        }
+
+    def apply_wld_to_selected(self):
+        items = self.file_list.selectedItems()
+        if not items:
+            QMessageBox.information(self, "No selection", "Please select one or more files.")
+            return
+
+        dims = self._read_wld_inputs()
+        for item in items:
+            path = self._item_path(item)
+            self.file_dims[path] = dims
+            self._update_item_label(item)
+        self.log(f"Applied W/L/d to {len(items)} file(s).")
+
+    def apply_wld_to_all(self):
+        count = self.file_list.count()
+        if count == 0:
+            QMessageBox.information(self, "No files", "Please add files first.")
+            return
+
+        dims = self._read_wld_inputs()
+        for i in range(count):
+            item = self.file_list.item(i)
+            path = self._item_path(item)
+            self.file_dims[path] = dims
+            self._update_item_label(item)
+        self.log(f"Applied W/L/d to {count} file(s).")
 
     def _collect_csv_files(self, paths):
         results = []
@@ -189,6 +285,8 @@ class TransferApp(QWidget):
                 self.log(f"  Skipped (invalid data): {path}")
                 continue
 
+            dims = self.file_dims.get(path, self._read_wld_inputs())
+
             base_name = os.path.splitext(os.path.basename(path))[0]
             sweeps = split_sweeps_by_turning_point(vg, idc)
 
@@ -198,6 +296,7 @@ class TransferApp(QWidget):
                     continue
 
                 features = extract_features_for_sweep(vg_seg, id_seg, device_type)
+                mu_c = self._compute_mu_c(features, dims)
                 title = base_name
                 output_name = f"{base_name}_{sweep_label}_transfer.jpg"
                 output_path = os.path.join(output_dir, output_name)
@@ -221,11 +320,15 @@ class TransferApp(QWidget):
                         "file": base_name,
                         "sweep": sweep_label,
                         "device_type": features["device_type"],
-                        "Vth": features["vth_info"]["Vth"],
+                        "Vth (V)": features["vth_info"]["Vth"],
                         "onoff_ratio": features["onoff"],
-                        "SS": features["ss"],
-                        "max_Id": features["max_id"],
-                        "max_gm": features["max_gm"],
+                        "SS (V/dec)": features["ss"],
+                        "max_Id (A)": features["max_id"],
+                        "max_gm (S)": features["max_gm"],
+                        "W (um)": dims["W"],
+                        "L (um)": dims["L"],
+                        "d (um)": dims["d"],
+                        "muC* (S/V/cm^2)": mu_c,
                         "plot": output_name,
                     }
                 )
@@ -238,6 +341,32 @@ class TransferApp(QWidget):
             self.log("No results produced.")
 
         QMessageBox.information(self, "Done", "Processing completed.")
+
+    def _compute_mu_c(self, features, dims):
+        w_um = dims.get("W")
+        l_um = dims.get("L")
+        d_um = dims.get("d")
+
+        if not np.isfinite(w_um) or not np.isfinite(l_um) or not np.isfinite(d_um):
+            return np.nan
+        if w_um <= 0 or l_um <= 0 or d_um <= 0:
+            return np.nan
+
+        vth = features["vth_info"]["Vth"]
+        vg_at_max = features.get("vg_at_max_gm", np.nan)
+        max_gm = features.get("max_gm", np.nan)
+
+        if not np.isfinite(vth) or not np.isfinite(vg_at_max) or not np.isfinite(max_gm):
+            return np.nan
+
+        denom_v = abs(vth - vg_at_max)
+        if denom_v == 0:
+            return np.nan
+
+        w_cm = w_um * 1e-4
+        l_cm = l_um * 1e-4
+        d_cm = d_um * 1e-4
+        return abs(max_gm) * (l_cm / (w_cm * d_cm)) / denom_v
 
 
 def main():
