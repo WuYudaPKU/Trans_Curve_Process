@@ -102,4 +102,4 @@ python transfer_app.py
 3. 请勿商用。
 4. 该项目仅供参考，请认真校对，数据出现问题概不负责。
 
-![Visitor Count](https://count.getloli.com/get/@WuYudaPKU-Trans_Curve_Process?theme=moebooru)
+![Visitor Count](https://visitor-badge.laobi.icu/badge?page_id=WuYudaPKU.Trans_Curve_Process)
