@@ -101,3 +101,5 @@ python transfer_app.py
 2. 欢迎和我提各种各样的bug！
 3. 请勿商用。
 4. 该项目仅供参考，请认真校对，数据出现问题概不负责。
+
+![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https://github.com/WuYudaPKU/Trans_Curve_Process&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)
